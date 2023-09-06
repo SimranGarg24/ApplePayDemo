@@ -41,6 +41,15 @@ enum Country: String {
     }
 }
 
+struct ShippingDetails {
+    var label: String
+    var amount: Double
+    var detail: String?
+    var identifier: String?
+    var startAfterDays: Int?
+    var endAfterDays: Int?
+}
+
 typealias PaymentCompletionHandler = (Bool, PKPaymentToken?) -> Void
 
 class PaymentHandler: NSObject {
@@ -88,12 +97,47 @@ class PaymentHandler: NSObject {
         return paymentSummaryItems
     }
     
+    func setShippingMethods(_ shippingMethods: [ShippingDetails]?) -> [PKShippingMethod]? {
+        
+        guard let shippingMethods else {
+            return nil
+        }
+        
+        self.shippingMethods = []
+        
+        for method in shippingMethods {
+            
+            let shippingDelivery = PKShippingMethod(label: method.label, amount: NSDecimalNumber(value: method.amount))
+            
+            shippingDelivery.detail = method.detail
+            shippingDelivery.identifier = method.identifier
+            
+            if let start = method.startAfterDays, let end = method.endAfterDays {
+                // Calculate pickup date.
+                let today = Date()
+                let calendar = Calendar.current
+                
+                let shippingStart = calendar.date(byAdding: .day, value: start, to: today)!
+                let shippingEnd = calendar.date(byAdding: .day, value: end, to: today)!
+                
+                let startComponents = calendar.dateComponents([.calendar, .year, .month, .day], from: shippingStart)
+                let endComponents = calendar.dateComponents([.calendar, .year, .month, .day], from: shippingEnd)
+                
+                shippingDelivery.dateComponentsRange = PKDateComponentsRange(start: startComponents, end: endComponents)
+            }
+            
+            self.shippingMethods.append(shippingDelivery)
+        }
+        
+        return self.shippingMethods
+    }
+    
     func startPayment(paymentSummaryItems: [SummaryItem],
                       merchantID: String,
                       merchantCapabilities: PKMerchantCapability = .capability3DS,
                       countryCode: Country,
                       shippingType: PKShippingType = .delivery,
-                      shippingMethods: [PKShippingMethod]?,
+                      shippingMethods: [ShippingDetails]?,
                       supportsCoupon: Bool = false,
                       completion: @escaping PaymentCompletionHandler) {
         
@@ -130,7 +174,7 @@ class PaymentHandler: NSObject {
                              merchantCapabilities: PKMerchantCapability,
                              countryCode: Country,
                              shippingType: PKShippingType,
-                             shippingMethods: [PKShippingMethod]?,
+                             shippingMethods: [ShippingDetails]?,
                              supportsCoupon: Bool) -> PKPaymentRequest {
         
         let paymentRequest = PKPaymentRequest()
@@ -142,7 +186,7 @@ class PaymentHandler: NSObject {
         paymentRequest.currencyCode = countryCode.currencyCode
         paymentRequest.supportedNetworks = supportedNetworks
         paymentRequest.shippingType = shippingType
-        paymentRequest.shippingMethods = shippingMethods
+        paymentRequest.shippingMethods = setShippingMethods(shippingMethods)
         paymentRequest.requiredShippingContactFields = [.name, .postalAddress]
         paymentRequest.supportsCouponCode = supportsCoupon
         
@@ -158,11 +202,10 @@ class PaymentHandler: NSObject {
 // MARK: - Extension
 extension PaymentHandler: PKPaymentAuthorizationControllerDelegate {
     
-    // Tells the delegate that the user authorized the payment request, and asks for a result.
-    // Your handler confirms that the shipping address meets the criteria needed, and then calls the completion handler to report success or failure of the payment.
+    // Tells the delegate that the user authorized the payment request, and asks for a result
     func paymentAuthorizationController(_ controller: PKPaymentAuthorizationController, didAuthorizePayment payment: PKPayment, handler completion: @escaping (PKPaymentAuthorizationResult) -> Void) {
         
-        // Perform basic validation on the provided contact information.
+        // Your handler confirms that the shipping address meets the criteria needed, and then calls the completion handler to report success or failure of the payment.
         var errors = [Error]()
         var status = PKPaymentAuthorizationStatus.success
         if payment.shippingContact?.postalAddress?.isoCountryCode != selectedCountry.rawValue {
@@ -191,7 +234,7 @@ extension PaymentHandler: PKPaymentAuthorizationControllerDelegate {
     
     // The `didChangeCouponCode` delegate method allows you to make changes when the user enters or updates a coupon code.
     
-    // After the user enters an accepted coupon code, the method adds a new PKPaymentSummaryItem displaying the discount, and adjusts the PKPaymentSummaryItem with the discounted total.
+    /// After the user enters an accepted coupon code, the method adds a new PKPaymentSummaryItem displaying the discount, and adjusts the PKPaymentSummaryItem with the discounted total.
     
     func paymentAuthorizationController(_ controller: PKPaymentAuthorizationController,
                                         didChangeCouponCode couponCode: String,
