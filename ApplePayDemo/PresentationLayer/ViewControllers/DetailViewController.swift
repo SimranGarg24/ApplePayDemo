@@ -33,17 +33,20 @@ class DetailViewController: UIViewController {
     func addApplePayButton() {
         let result  = viewModel.applePayStatus()
         var button: UIButton?
-
-        if result.canMakePayments {
-            // The iOS app displays the payment button by adding an instance of PKPaymentButton.
-            button = PKPaymentButton(paymentButtonType: .buy, paymentButtonStyle: .black)
+        
+        // The iOS app displays the payment button by adding an instance of PKPaymentButton.
+        if result.canMakePayments && result.canSetupCards {
+            // Apple Pay supported and card already setup
+            button = PKPaymentButton(paymentButtonType: .inStore, paymentButtonStyle: .black)
             button?.addTarget(self, action: #selector(self.payPressed), for: .touchUpInside)
 
-        } else if result.canSetupCards {
+        } else if result.canMakePayments && !result.canSetupCards {
+            // Apple pay supported, but no cards are set up, display a payment setup button
             button = PKPaymentButton(paymentButtonType: .setUp, paymentButtonStyle: .black)
             button?.addTarget(self, action: #selector(self.setupPressed), for: .touchUpInside)
             
         } else {
+            // Apple Pay not supported
             displayDefaultAlert(title: "Error", message: "Unable to make Apple Pay transaction.")
         }
         
@@ -68,6 +71,7 @@ class DetailViewController: UIViewController {
     }
     
     @objc func setupPressed(sender: AnyObject) {
+        // initiate the process of setting up a new card 
         let passLibrary = PKPassLibrary()
         passLibrary.openPaymentSetup()
     }

@@ -33,6 +33,7 @@ class DetailViewModel {
         
         paymentHandler.addCoupons([Coupon(code: "FESTIVAL", amount: 50)])
         
+        // The merchant ID you set in a payment request must match one of the merchant IDs in your app’s entitlement.
         paymentHandler.startPayment(
             paymentSummaryItems: summaryItems,
             merchantID: "merchant.com.chicmic.test",
